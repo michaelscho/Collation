@@ -1,6 +1,5 @@
-<!-- bereitet XML für Collation in collatex vor -->
-<xsl:stylesheet xmlns:xsl="http://www.w3.org/1999/XSL/Transform" xmlns:xs="http://www.w3.org/2001/XMLSchema" version="2.0" xpath-default-namespace="http://www.tei-c.org/ns/1.0" exclude-result-prefixes="xs">
-
+<!-- bereitet XML für Collation in collatex vor --><xsl:stylesheet xmlns:xsl="http://www.w3.org/1999/XSL/Transform" xmlns:xs="http://www.w3.org/2001/XMLSchema" version="2.0" xpath-default-namespace="http://www.tei-c.org/ns/1.0" exclude-result-prefixes="xs">
+    <xsl:output method="text" indent="no"/>
 
     <xsl:template match="/">
         <xsl:apply-templates/>
@@ -41,6 +40,12 @@
 
     <!-- Ausschluss seg -->
     <xsl:template match="seg"/>
+
+    <!-- supplied ohne Leerzeichen
+    <xsl:template match="supplied">
+        <xsl:text>_</xsl:text><xsl:apply-templates/>
+    </xsl:template> -->
+
 
 
     <!-- Ausschluss Interpunktion-->
@@ -113,13 +118,16 @@
 
     <!-- linebeginnings als einfacher Zeilenumbruch -->
     <xsl:template match="lb">
-        <xsl:text>
-</xsl:text>
+        <xsl:text> </xsl:text>
     </xsl:template>
 
     <!-- lb break ="no" ohne Zeilenumbruch -->
-    <xsl:template match="lb[@break='no']"/>
+    <xsl:template match="lb[@break='no']">
+        <xsl:text>+</xsl:text>
+    </xsl:template>
 
+    <!-- cb ohne Zeilenumbruch -->
+    <xsl:template match="cb"/>
 
     <!-- Leerzeichen -->
     <!-- Leerzeichen normalisieren -->
@@ -129,6 +137,15 @@
             <xsl:non-matching-substring><xsl:value-of select="."/></xsl:non-matching-substring>
         </xsl:analyze-string>
     </xsl:template>
+
+    <!-- Newlines normalisieren  -->
+    <xsl:template match="text()">
+        <xsl:analyze-string select="." regex="\n">
+            <xsl:matching-substring><xsl:text/></xsl:matching-substring>
+            <xsl:non-matching-substring><xsl:value-of select="."/></xsl:non-matching-substring>
+        </xsl:analyze-string>
+    </xsl:template>
+
 
     <!-- Von oxygen eingefügte Leerzeichenketten in choice entfernen -->
     <xsl:template match="choice/text()"/>

@@ -1,17 +1,14 @@
-from collatex import *
 import os
-import pypandoc as pp
 import re
 from bs4 import BeautifulSoup
 import requests # for REST requests
 from requests.auth import HTTPDigestAuth # for Transkribus REST requests
 from requests.auth import HTTPBasicAuth # for exist REST request
-from json2html import *
 import json
 import config # stores basic config
 
 
-def open_file_as_witness(pathtofile, i):
+def open_file_as_witness(pathtofile):
     """ Opens prepared txt files as witnesses
     """
 
@@ -23,8 +20,14 @@ def preprocessing_witness(witness):
     """ Normalises files for a more meaningful collation
     """
 
+    while '  ' in witness:
+        witness = witness.replace('  ',' ')
     witness = witness.lower()
+    witness = re.sub('\s+',' ',witness)
+    witness = re.sub('\s+\+','',witness)
+    witness = witness.replace('+','')
     witness = witness.replace('ę','e')
+    witness = witness.replace('\n',' ')
     witness = witness.replace('tv','tu')
     witness = witness.replace('vm','um')
     witness = witness.replace('vnt','unt')
@@ -47,47 +50,20 @@ def preprocessing_witness(witness):
 
     return witness
 
-def collate_witnesses(booknumber, i, manuscripts, filename):
-    """ Actuall collation
-    """
-
-    collation = Collation()
-
-    for m in manuscripts:
-        # Add witnesses
-        text = open_file_as_witness('./witnesses/' + m + '_' + str(booknumber) + '_'+ i +'.txt', i)
-        text = preprocessing_witness(text)
-        collation.add_plain_witness(m, text)
-
-    alignment_table = collate(collation, layout="vertical")
-    #alignment_table_csv = collate(collation, output="csv")
-    with open(filename, 'w') as txt:
-        txt.write(str(alignment_table))
-
-    return filename
-
-def output_html(filename):
+def output_html(filepath, booknumber, manuscripts):
     """ Creates html table
 
     """
+    filename = filepath + 'output/' + '_'.join(manuscripts) + '_' + str(booknumber).zfill(2) + '.html'
 
     with open(filename) as f:
         # open collation file in markdown format
-        file = f.read()
+        html = f.read()
         # convert md file to html
-        html = pp.convert_text(file, 'html', format='md')
-        html = re.sub('\>toc(\d+)','<b>\g<1>: </b>',html)
-        html = re.sub('\w toc(\d+)','<br><b>\g<1>: </b>',html)
         html = re.sub('toc(\d+)','<br><b>\g<1>: </b>',html)
-        html = re.sub('\w k(\d+)','<br><b>Kapitel \g<1>: </b><br>',html)
-        html = re.sub('\>k(\d+)','<b>Kapitel \g<1>: </b><br>',html)
+        html = re.sub('k(\d+)','<br><b>Kapitel \g<1>: </b><br>',html)
 
-        # clean up html
-        html = html.replace('<pre><code>','')
-        html = html.replace('</code></pre>','')
         soup = BeautifulSoup(html, 'lxml')
-        tag_to_remove = soup.find("colgroup")
-        tag_to_remove.decompose()
 
         rows = soup.find("table").find("tbody").find_all("tr")
         e = 1
@@ -99,16 +75,18 @@ def output_html(filename):
                 for i in td:
                     i['style'] = 'background-color:red;'
                 print(row)
-            td1 = row.find('td')
-            tag = soup.new_tag("td")
-            tag.string = str(e)
-            td1.insert_before(tag)
-
-            print(row)
             e += 1
-        with open(filename.replace('.md', '.html'),'w') as save:
-            save.write(str(soup))
 
+        y = 1
+        for tr in soup.select('tr'):
+            tds = tr.select('td')
+            new_td = soup.new_tag('td')
+            new_td.append(str(y))
+            tr.append(new_td)
+            y += 1
+
+        with open(filename.replace('.html', '_final.html'),'w') as save:
+            save.write(str(soup))
 
 def create_filename(booknumber, i, manuscripts):
     """ Constructs filename
@@ -117,11 +95,11 @@ def create_filename(booknumber, i, manuscripts):
     filename_sigla = ""
     for m in manuscripts:
         filename_sigla = filename_sigla + m + '_'
-    filename = './output/'+ filename_sigla + str(booknumber) + '_' + i +'.md'
+    filename = './output/'+ filename_sigla + str(booknumber).zfill(2) + '_' + i +'.md'
 
     return filename
 
-def xslt_transformation(manuscripts, booknumber, segments_of_text):
+def xslt_transformation(manuscripts, booknumber, segments_of_text, filepath):
     """ takes downloaded xml files and transforms them to txt based on xslt file and saxon jar
     """
     for i in segments_of_text:
@@ -136,8 +114,7 @@ def xslt_transformation(manuscripts, booknumber, segments_of_text):
             elif m == 'B':
                 ms = 'bamberg-sb-c-6-' + str(booknumber).zfill(2) + '.xml'
 
-        os.system('java -jar '+ filepath + 'saxon/saxon9he.jar -s:'+ filepath +'xml/' + ms + ' -xsl:'+ filepath + 'xslt/xml_to_collatex.xslt -o:'+ filepath + 'witnesses/' + m + '_' + str(booknumber) + '_a.txt')
-
+            os.system('java -jar '+ filepath + 'saxon/saxon9he.jar -s:'+ filepath +'xml/' + ms + ' -xsl:'+ filepath + 'xslt/xml_to_collatex.xslt -o:'+ filepath + 'witnesses/' + m + '_' + str(booknumber).zfill(2) + '_a.txt')
 
 # Todo take method from file
 def get_xml_from_exist(user, pw, manuscripts, booknumber, base_url):
@@ -183,50 +160,73 @@ def get_xml_from_exist(user, pw, manuscripts, booknumber, base_url):
         with open('./xml/' + ms + str(booknumber).zfill(2) + '.xml', "w") as text_file:
             text_file.write(export_request)
 
-def start_collation(booknumber, segments_of_text, manuscripts, collate_or_not):
-    """ Starts collation process
-
-    :param booknumber: takes book number to be collated as integer
-    :param segments_of_text: takes list of text segments 'a', 'b', 'c'...
-    :manuscripts: Takes list of strings containing sigle of manuscripts
-    """
-
+def normalise_files(booknumber, segments_of_text, manuscripts, filepath):
     for i in segments_of_text:
-        collation = Collation()
-        filename = create_filename(booknumber, i, manuscripts)
-        if collate_or_not == True:
-            collate_witnesses(booknumber, i, manuscripts, filename)
-        else:
-            pass
-        output_html(filename)
+        for ms in manuscripts:
+            filename = filepath + 'witnesses/' + ms + '_' + str(booknumber).zfill(2) + '_' + i + '.txt'
+            normalised_filename = filepath + 'witnesses/' + ms + '_' + str(booknumber).zfill(2) + '_' + i + '_normalised.txt'
+            with open(filename, 'r') as input_file:
+                text = input_file.read()
+            normalised_text = preprocessing_witness(text)
+            with open(normalised_filename, 'w') as output_file:
+                output_file.write(normalised_text)
 
-
-def start_collation_java(booknumber, segments_of_text, manuscripts, filepath):
-
+def start_collation(booknumber, segments_of_text, manuscripts, filepath):
     for i in segments_of_text:
-
         string_of_filenames = ""
         filename_sigla = ""
         for m in manuscripts:
             filename_sigla = filename_sigla + m + '_'
-
         for m in manuscripts:
             if m == 'F':
-                ms = filepath + 'witnesses/F_' + str(booknumber).zfill(2) + '_' + i + '.txt'
+                ms = filepath + 'witnesses/F_' + str(booknumber).zfill(2) + '_' + i + '_normalised.txt'
             elif m == 'V':
                 if booknumber < 8:
-                    ms = filepath + 'witnesses/V_' + str(booknumber).zfill(2) + '_' + i + '.txt'
+                    ms = filepath + 'witnesses/V_' + str(booknumber).zfill(2) + '_' + i + '_normalised.txt'
                 else:
-                    ms = filepath + 'witnesses/V_' + str(booknumber).zfill(2) + '_' + i + '.txt'
+                    ms = filepath + 'witnesses/V_' + str(booknumber).zfill(2) + '_' + i + '_normalised.txt'
             elif m == 'B':
-                ms = filepath + 'witnesses/B_' + str(booknumber).zfill(2) + '_' + i + '.txt'
+                ms = filepath + 'witnesses/B_' + str(booknumber).zfill(2) + '_' + i + '_normalised.txt'
 
             string_of_filenames = string_of_filenames + ' ' + ms
-
         execute = 'java -jar ' + filepath + 'collatex/collatex-tools-1.7.1.jar -f json -o ' + filepath + 'output/' + filename_sigla + str(booknumber).zfill(2) + '.json' + string_of_filenames
         os.system(execute)
 
+def collation_to_html(booknumber, manuscripts):
+    ms_string = ""
+    sigla_html = '<html><body><table style="width:96%;"><tbody><tr>'
+    for ms in manuscripts:
+        ms_string = ms_string + ms + '_'
+        sigla_html = sigla_html + '<th>' + ms + '</th>'
+    sigla_html = sigla_html + '</tr>'
+    filename = filepath + 'output/' + ms_string + str(booknumber).zfill(2) + '.json'
+    filename_html = filepath + 'output/' + ms_string + str(booknumber).zfill(2) + '.html'
+    table_html = sigla_html
+    with open(filename) as json_file:
+        data = json.load(json_file)
+    i = 0
+    while i < len(data['table']):
+        table_html = table_html + '<tr>'
+        e = 0
+        while e < len(manuscripts):
+            cell = '<td>' + "".join(data['table'][i][e]) + '</td>'
+            table_html = table_html + cell
+            e+=1
+        table_html = table_html + '</tr>'
+        i+=1
+    table_html = table_html + '</table></body></html>'
+    table_html = table_html.replace('   </td>','</td>')
+    table_html = table_html.replace('  </td>','</td>')
+    table_html = table_html.replace(' </td>','</td>')
 
+    with open(filename_html,'w') as html_output:
+        html_output.write(table_html)
+
+
+
+""" settings
+
+"""
 
 booknumber = 13
 segments_of_text = ['a']
@@ -235,20 +235,27 @@ user = config.user_exist
 pw = config.pw_exist
 filepath = config.cwd
 base_url = config.base_url
+
+
 # erst Daten aus Exist ziehen
-#get_xml_from_exist(user, pw, manuscripts, booknumber, base_url)
+get_xml_from_exist(user, pw, manuscripts, booknumber, base_url)
 # dann transformation zu textfile
-#xslt_transformation(manuscripts, booknumber, segments_of_text, filepath)
-# dann collation starten
-#start_collation(booknumber, segments_of_text, manuscripts, True)
+xslt_transformation(manuscripts, booknumber, segments_of_text, filepath)
+# normalise files for mor meaningful collation
+normalise_files(booknumber, segments_of_text, manuscripts, filepath)
 # use java library for faster collation
-start_collation_java(booknumber, segments_of_text, manuscripts, filepath)
+start_collation(booknumber, segments_of_text, manuscripts, filepath)
+# transform json into html table
+collation_to_html(booknumber, manuscripts)
+# prepare html table
+output_html(filepath, booknumber, manuscripts)
 
 
 """ TODO
-- Normalisierungen implementieren
-- Json zu Tabelle
-- zellen rot machen
+- Normalisierungen implementieren (erledigt)
+- Json zu Tabelle (erledigt, aber prüfen)
+- zellen rot machen (erledigt)
 - automatisierter upload zu exist
 - Dokumentation verbessern
+- verglich zu alter tabelle
 """
