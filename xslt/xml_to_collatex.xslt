@@ -10,6 +10,21 @@
         <xsl:apply-templates select="text/body/*"/>
     </xsl:template>
 
+    <!-- nur Kindelemente von TOC auswerten
+    <xsl:template match="TEI">
+        <xsl:apply-templates select="text/body//list/*"/>
+    </xsl:template>  -->
+
+    <!-- nur Kindelemente von content auswerten
+    <xsl:template match="TEI">
+        <xsl:apply-templates select="text/body//div[@type='content']/*"/>
+    </xsl:template> -->
+
+    <!-- ggf. Textbegrenzung für Collatex markieren durch inter -->
+    <xsl:template match="interp">
+        <xsl:text>collatex:</xsl:text><xsl:value-of select="./@ana"/><xsl:text> </xsl:text>
+    </xsl:template>
+
     <!-- Kopfzeile nicht übernehmen -->
     <xsl:template match="fw"/>
 
@@ -41,10 +56,10 @@
     <!-- Ausschluss seg -->
     <xsl:template match="seg"/>
 
-    <!-- supplied ohne Leerzeichen
+    <!-- supplied ohne Leerzeichen -->
     <xsl:template match="supplied">
         <xsl:text>_</xsl:text><xsl:apply-templates/>
-    </xsl:template> -->
+    </xsl:template>
 
 
 
