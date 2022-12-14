@@ -69,3 +69,44 @@ xslt =  ('''<xsl:stylesheet version="1.0" xmlns:xsl="http://www.w3.org/1999/XSL/
                     <!-- Von oxygen eingefügte Leerzeichenketten in Liste entfernen -->
                     <xsl:template match="tei:subst/text()"/>
                 </xsl:stylesheet>''')
+
+characters_to_normalise = [
+                            ['+ ',''],
+                            ['+',''],
+                            ['_',''],
+                            ['ę','e'],
+                            ['\n',' '],
+                            ['tv','tu'],
+                            ['vm','um'],
+                            ['vnt','unt'],
+                            ['ae','e'],
+                            ['vt','ut'],
+                            ['rv','ru'],
+                            ['coepit','cepit'],
+                            ['y','i'],
+                            ['cio','tio'],
+                            ['cia','tia'],
+                            ['mpn','mn'],
+                            ['comprou','conprou'],
+                            ['ecles','eccles'],
+                            ['privetur','priuetur'],
+                            ['verum','uerum'],
+                            ['repperimus','reperimus'],
+                            ['[]',''],
+                            [' decimvs ', ' decimus '],
+                            [' ieivnio ', ' ieiunio '],
+                            [' genva ', ' genua '],
+                            [' qvadragesima ', ' quadragesima '],
+                            [' tercius ', ' tertius '],
+                            [' tercivs ', ' tertius '],
+                            [' tertivs ', ' tertius '],
+                            [' tercii ', ' tertii '],
+                            [' inicium ', ' initium ']
+                            #['oe','e'],
+                            #[' v ', ' quinque '],
+                            #[' iii ', ' tertius '],
+                            #[' vi ', ' sex '],
+                            #[' xxx ', ' triginta '],
+                            #[' xlme ', ' quadragesime '],
+                            #[' xlma ', ' quadragesima ']
+                            ]
