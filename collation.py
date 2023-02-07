@@ -60,7 +60,7 @@ def get_xml_from_exist(manuscripts, booknumber):
         export_request = session.get(url, auth=HTTPBasicAuth(user, pw))
         export_request = export_request.text
 
-        with open('./xml/' + ms + str(booknumber).zfill(2) + '.xml', "w") as text_file:
+        with open(os.path.join(os.path(__file__),'xml', ms + str(booknumber).zfill(2) + '.xml'), "w", encoding='utf8') as text_file:
             text_file.write(export_request)
 
 
@@ -114,16 +114,25 @@ class Manuscript():
         elif self.sigla == 'K':
             ms = 'koeln-edd-c-119-' + str(self.booknumber).zfill(2) + '.xml'
 
-        self.filename = config.cwd + "xml/" + ms
+        self.filename = os.path.join(os.path.dirname(__file__), "xml", ms)
 
 
     def element_to_plain_text(self, i):
-        xpath = "//tei:div[@type='chapter'][@n='" + str(i) + "']"
-        chapter = self.root.xpath(xpath, namespaces={'tei': 'http://www.tei-c.org/ns/1.0'})
-        element = chapter[0]
-        xslt_root = LET.XML(config.xslt)
-        transform = LET.XSLT(xslt_root)
-        newdom = str(transform(element))
+        if i==0:
+            xpath = "//tei:div[@type='toc']"
+            chapter = self.root.xpath(xpath, namespaces={'tei': 'http://www.tei-c.org/ns/1.0'})
+            element = chapter[0]
+            xslt_root = LET.XML(config.xslt)
+            transform = LET.XSLT(xslt_root)
+            newdom = str(transform(element))
+        else:
+            xpath = "//tei:div[@type='chapter'][@n='" + str(i) + "']"
+            chapter = self.root.xpath(xpath, namespaces={'tei': 'http://www.tei-c.org/ns/1.0'})
+            element = chapter[0]
+            xslt_root = LET.XML(config.xslt)
+            transform = LET.XSLT(xslt_root)
+            newdom = str(transform(element))
+        
         return newdom
 
 
@@ -152,8 +161,13 @@ class Manuscript():
             normalised_text = self.preprocessing_witness(plain_text)
             print(normalised_text)
             # write plain text to file
-            filename = f"witnesses/{str(self.booknumber).zfill(2)}/{self.sigla}_book_{str(self.booknumber).zfill(2)}_chapter_{str(i).zfill(3)}_normalised.txt"
-            with open(filename, 'w+') as file:
+            path_to_witness_folder = os.path.join(os.getcwd(), 'witnesses', f'{str(self.booknumber).zfill(2)}')
+            #check if folder for book exists
+            if not os.path.exists(path_to_witness_folder):
+                os.mkdir(path_to_witness_folder)
+            
+            filename = os.path.join(path_to_witness_folder, f"{self.sigla}_book_{str(self.booknumber).zfill(2)}_chapter_{str(i).zfill(3)}_normalised.txt")
+            with open(filename, 'w+', encoding='utf8') as file:
                 file.write(normalised_text)
             i += 1
 
@@ -183,9 +197,9 @@ class Collation:
         i = 1
         while i <= number_of_chapters[0]:
             string_of_filenames, chapternumber = self.append_filenames(i)
-            json_filename = config.cwd + 'output/' + sigla + "_" + str(self.booknumber).zfill(2) + "_chapter_" + str(chapternumber).zfill(3) + '.json'
-            html_filename = config.cwd + 'output/' + sigla + "_" + str(self.booknumber).zfill(2) + "_chapter_" + str(chapternumber).zfill(3) + '.html'
-            execute = 'java -jar ' + config.cwd + 'collatex/collatex-tools-1.7.1.jar -f json -o ' + json_filename + string_of_filenames
+            json_filename = os.path.join(os.path.dirname(__file__), 'output', sigla + "_" + str(self.booknumber).zfill(2) + "_chapter_" + str(chapternumber).zfill(3) + '.json')
+            html_filename = os.path.join(os.path.dirname(__file__), 'output', sigla + "_" + str(self.booknumber).zfill(2) + "_chapter_" + str(chapternumber).zfill(3) + '.html')
+            execute = 'java -jar "' + os.path.join(os.path.dirname(__file__), 'collatex', 'collatex-tools-1.7.1.jar"') + ' -f json -o ' + '"' + json_filename + '"' + string_of_filenames
             print(execute)
             os.system(execute)        
             self.chapter_to_html(json_filename, html_filename, chapternumber)
@@ -202,7 +216,7 @@ class Collation:
         sigla_html = sigla_html + '</tr>'
         table_html = sigla_html
 
-        with open(json_filename) as json_file:
+        with open(json_filename, 'r', encoding='utf8') as json_file:
             data = json.load(json_file)
         i = 0
         while i < len(data['table']):
@@ -219,7 +233,7 @@ class Collation:
         table_html = table_html.replace('  </td>','</td>')
         table_html = table_html.replace(' </td>','</td>')
 
-        with open(html_filename,'w') as html_output:
+        with open(html_filename,'w', encoding='utf8') as html_output:
             html_output.write(table_html)
 
 
@@ -228,7 +242,7 @@ class Collation:
 
         """
 
-        with open(html_filename) as f:
+        with open(html_filename, 'r', encoding='utf8') as f:
             # open collation file in markdown format
             html = f.read()
 
@@ -260,33 +274,36 @@ class Collation:
                 tr.append(new_td)
                 y += 1
 
-            with open(html_filename.replace('.html', '_final.html'),'w') as save:
+            with open(html_filename.replace('.html', '_final.html'),'w', encoding='utf8') as save:
                 save.write(str(soup))
 
 
     def append_filenames(self, i):
         string_of_filenames = ""
         
+        path_to_witness_folder = os.path.join(os.getcwd(), 'witnesses', f'{str(self.booknumber).zfill(2)}')
+
         for m in self.manuscripts:
             chapternumber = int(m[1]) -1 + i
             print(chapternumber)
             if m[0] == 'F':
-                ms = config.cwd + f"witnesses/{str(self.booknumber).zfill(2)}/{m[0]}_book_{str(self.booknumber).zfill(2)}_chapter_{str(chapternumber).zfill(3)}_normalised.txt"
+                ms = os.path.join(path_to_witness_folder, f"{m[0]}_book_{str(self.booknumber).zfill(2)}_chapter_{str(chapternumber).zfill(3)}_normalised.txt")
             elif m[0] == 'V':
-                    ms = config.cwd + f"witnesses/{str(self.booknumber).zfill(2)}/{m[0]}_book_{str(self.booknumber).zfill(2)}_chapter_{str(chapternumber).zfill(3)}_normalised.txt"
+                    ms = os.path.join(path_to_witness_folder, f"{m[0]}_book_{str(self.booknumber).zfill(2)}_chapter_{str(chapternumber).zfill(3)}_normalised.txt")
             elif m[0] == 'B':
-                ms = config.cwd + f"witnesses/{str(self.booknumber).zfill(2)}/{m[0]}_book_{str(self.booknumber).zfill(2)}_chapter_{str(chapternumber).zfill(3)}_normalised.txt"
+                ms = os.path.join(path_to_witness_folder, f"{m[0]}_book_{str(self.booknumber).zfill(2)}_chapter_{str(chapternumber).zfill(3)}_normalised.txt")
             elif m[0] == 'K':
-                ms = config.cwd + f"witnesses/{str(self.booknumber).zfill(2)}/{m[0]}_book_{str(self.booknumber).zfill(2)}_chapter_{str(chapternumber).zfill(3)}_normalised.txt"
+                ms = os.path.join(path_to_witness_folder, f"{m[0]}_book_{str(self.booknumber).zfill(2)}_chapter_{str(chapternumber).zfill(3)}_normalised.txt")
 
-            string_of_filenames = string_of_filenames + ' ' + ms
+            string_of_filenames = string_of_filenames + ' ' + '"' + ms + '"'
             
         return string_of_filenames, chapternumber
 
 
 def main():
     # Get variables from console
-    # example "python collation 'V 70-94, F 70-94, B 70-94, K 70-94' 1 -dl"
+    # TOC as 0
+    # example "python collation.py 'V 70-94, F 70-94, B 70-94, K 70-94' 1 -dl"
     manuscripts, booknumber, download = get_arguments_from_cli()
     
     if download == True:
