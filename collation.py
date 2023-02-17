@@ -28,7 +28,7 @@ def get_xml_from_exist(manuscripts, booknumber):
     # login to exist...
     user = config.user_exist
     pw = config.pw_exist
-    filepath = config.cwd
+    #filepath = os.getcwd()
     base_url = config.base_url
 
     # ...set session...
@@ -60,7 +60,7 @@ def get_xml_from_exist(manuscripts, booknumber):
         export_request = session.get(url, auth=HTTPBasicAuth(user, pw))
         export_request = export_request.text
 
-        with open(os.path.join(os.path(__file__),'xml', ms + str(booknumber).zfill(2) + '.xml'), "w", encoding='utf8') as text_file:
+        with open(os.path.join(os.path.dirname(__file__),'xml', ms + str(booknumber).zfill(2) + '.xml'), "w", encoding='utf8') as text_file:
             text_file.write(export_request)
 
 
@@ -126,12 +126,16 @@ class Manuscript():
             transform = LET.XSLT(xslt_root)
             newdom = str(transform(element))
         else:
-            xpath = "//tei:div[@type='chapter'][@n='" + str(i) + "']"
-            chapter = self.root.xpath(xpath, namespaces={'tei': 'http://www.tei-c.org/ns/1.0'})
-            element = chapter[0]
-            xslt_root = LET.XML(config.xslt)
-            transform = LET.XSLT(xslt_root)
-            newdom = str(transform(element))
+            try:
+                xpath = "//tei:div[@type='chapter'][@n='" + str(i) + "']"
+                chapter = self.root.xpath(xpath, namespaces={'tei': 'http://www.tei-c.org/ns/1.0'})
+                element = chapter[0]
+                xslt_root = LET.XML(config.xslt)
+                transform = LET.XSLT(xslt_root)
+                newdom = str(transform(element))
+            except Exception as e:
+                print(e)
+                return
         
         return newdom
 
@@ -186,7 +190,7 @@ class Collation:
             sigla = sigla + "_" + m[0]
             chapter_min = m[1]
             chapter_max = m[2]
-            number_of_chapter = int(m[2])-int(m[1])
+            number_of_chapter = int(m[2])-int(m[1])+1
             number_of_chapters.append(number_of_chapter)
         
         sigla = sigla[1:]
@@ -196,6 +200,7 @@ class Collation:
             
         i = 1
         while i <= number_of_chapters[0]:
+            print("i:" + str(i) + " noc:" + str(number_of_chapters[0]) + str(number_of_chapters))
             string_of_filenames, chapternumber = self.append_filenames(i)
             json_filename = os.path.join(os.path.dirname(__file__), 'output', sigla + "_" + str(self.booknumber).zfill(2) + "_chapter_" + str(chapternumber).zfill(3) + '.json')
             html_filename = os.path.join(os.path.dirname(__file__), 'output', sigla + "_" + str(self.booknumber).zfill(2) + "_chapter_" + str(chapternumber).zfill(3) + '.html')
@@ -315,7 +320,9 @@ def main():
         manuscript = Manuscript(m, booknumber)
 
     # collate
+    print("Debug1")
     collate_witnesses = Collation(manuscripts, booknumber)
+    print("Debug2")
     collate_witnesses.collate_chapters()
 
     
