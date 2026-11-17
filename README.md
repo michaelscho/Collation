@@ -1,15 +1,236 @@
+
 # Collation
-Python library for collating witnesses in project BDD.
 
-## Install
-Clone the repository and copy config_template.py to `config.py`. 
-Insert existdb username and password as well as url to existdb data in `config.py`. 
-Also, insert path to sourcecode in `config.cwd`. Script uses xslt transformation to create plain text files can be specified in `config.xslt`. Characters that need to be normalized are set in `config.characters_to_normalise`. 
+Python-based workflow for generating and publishing collation tables for the **Burchards Dekret Digital (BDD)** project.
 
-## Usage
-Script can be called from commandline using sigla and chapter range that needs to be collated in single quotation marks, e.g. `'V 70-94, F 70-94, B 70-94, K 70-94'`. Table of COntent needs to be indicated as '0'. After that, the booknumber needs to be specified as an integer. If xml files need to be downloaded, add `-dl` flag at the end of command: `python collation.py 'V 70-94, F 70-94, B 70-94, K 70-94' 1 -dl`. Collations are stored in html files for each chapter in `./output/`.
+The workflow consists of two independent scripts:
+
+- `collation.py` — extracts and normalises manuscript texts, runs CollateX, and generates HTML collation tables.
+- `upload_collations.py` — uploads the final HTML tables directly to eXist-db via WebDAV.
+
+The tables are automatically listed on the BDD eXist-website by the XQuery module `collations.xqm`.
+
+## 1. Requirements
+
+- Python 3
+- Java 11 (tested with Java 11.0.18 LTS)
+- CollateX 1.7.1 (`collatex/collatex-tools-1.7.1.jar`)
+
+Required Python libraries:
+
+- `lxml`
+- `beautifulsoup4`
+- `requests`
 
 
-## Todo
-- automatisierter upload zu exist
-- Dokumentation verbessern
+## 2. Installation and Configuration
+
+Clone the repository and open it in a Python development environment.
+
+Install the required Python packages:
+
+```bash
+pip install lxml beautifulsoup4 requests
+```
+
+Copy `config_template.py` to `config.py` and configure the local settings.
+
+The configuration includes:
+
+- `user_exist` — eXist-db username.
+- `pw_exist` — eXist-db password.
+- `base_url` — WebDAV URL used to download manuscript XML files.
+- `collations_upload_url` — WebDAV URL of the application's `collations` collection.
+- `xslt` — XSLT transformation used to extract text from TEI XML.
+- `characters_to_normalise` — character substitutions applied during normalisation.
+
+**Important:** `config.py` contains credentials and must not be committed to the shared repository.
+
+
+## 3. Generating Collation Tables
+
+Collation tables are generated using `collation.py`.
+
+Example:
+
+```bash
+python collation.py 'V 1-10, F 1-10, B 1-10, K 1-10' 19
+```
+
+This generates collation tables for chapters 1–10 of Book 19, comparing the four witnesses V, F, B, and K.
+
+The order of the witnesses in the command determines their order in the output tables.
+
+### Downloading XML files
+
+If the manuscript XML files are not available locally, add the `-dl` option:
+
+```bash
+python collation.py 'V 1-10, F 1-10, B 1-10, K 1-10' 19 -dl
+```
+
+The script downloads the corresponding XML files from eXist-db and saves them in the local `xml/` directory before processing.
+
+Without `-dl`, the script uses the XML files already stored locally.
+
+### Different chapter ranges
+
+The script supports different chapter ranges for individual witnesses.
+
+For example, in Book 19, witness K is available only up to chapter 102, while V, F, and B extend to chapter 159.
+
+The entire book can therefore be processed with:
+
+```bash
+python collation.py 'V 0-159, F 0-159, B 0-159, K 0-102' 19
+```
+
+The script automatically selects the available witnesses for each chapter:
+
+- Chapters 0–102: V, F, B, K
+- Chapters 103–159: V, F, B
+
+
+### Table of Contents
+
+The Table of Contents (TOC) is represented by chapter `0`.
+
+Example:
+
+```bash
+python collation.py 'V 0-0, F 0-0, B 0-0, K 0-0' 19
+```
+
+### Processing workflow
+
+For each requested witness and chapter, `collation.py`:
+
+1. Reads the corresponding TEI XML document.
+2. Extracts the requested chapter using the configured XSLT transformation.
+3. Normalises the extracted text.
+4. Saves the normalised text as a TXT file in `witnesses/`.
+5. Runs CollateX to generate a JSON alignment.
+6. Converts the JSON into an HTML table.
+7. Post-processes the HTML, highlighting textual differences and adding checkboxes.
+8. Saves the final HTML table.
+
+
+## 4. Output Structure
+
+The script preserves intermediate files and stores the final HTML tables separately.
+
+Files are organised by book number:
+
+```text
+Collation/
+├── xml/
+├── witnesses/
+│   └── 19/
+│       ├── V_book_19_chapter_001_normalised.txt
+│       ├── F_book_19_chapter_001_normalised.txt
+│       ├── B_book_19_chapter_001_normalised.txt
+│       └── K_book_19_chapter_001_normalised.txt
+│
+└── output/
+    ├── intermediate/
+    │   └── 19/
+    │       ├── V_F_B_K_19_chapter_001.json
+    │       └── V_F_B_K_19_chapter_001.html
+    │
+    └── final/
+        └── 19/
+            └── V_F_B_K_19_chapter_001_final.html
+```
+
+### Intermediate files
+
+The `output/intermediate/BOOK/` directory contains:
+
+- `.json` files generated by CollateX.
+- `.html` files generated before final post-processing.
+
+These files are retained for inspection and troubleshooting.
+
+### Final files
+
+The `output/final/BOOK/` directory contains the completed HTML tables ready for publication.
+
+The filenames follow this convention:
+
+```text
+WITNESSES_BOOK_chapter_CHAPTER_final.html
+```
+
+For example:
+
+```text
+V_F_B_K_19_chapter_001_final.html
+V_F_B_19_chapter_103_final.html
+```
+
+Do not rename these files, as collations.xqm uses their filenames to identify the book, chapter, and witnesses.
+
+## 5. Uploading Collation Tables to eXist-db
+
+The final HTML tables can be uploaded directly to eXist-db using `upload_collations.py`.
+
+The script reads files from:
+
+```text
+output/final/BOOK/
+```
+
+It automatically identifies the witnesses and chapters from the filenames.
+**There is no need to specify manuscript sigla in the upload command.**
+
+### Upload a single chapter
+
+```bash
+python upload_collations.py 19 5
+```
+
+Uploads all final HTML files for chapter 5 of Book 19.
+
+### Upload a chapter range
+
+```bash
+python upload_collations.py 19 100-104
+```
+
+Uploads all matching final HTML files for chapters 100–104.
+
+
+### Upload all tables of a book
+
+```bash
+python upload_collations.py 19 --all
+```
+
+Uploads every matching final HTML file in `output/final/19/`.
+
+
+### Upload behaviour
+
+The script:
+
+1. Searches the selected book directory for matching `_final.html` files.
+2. Sorts the files by chapter number and filename.
+3. Uploads each file via WebDAV using HTTP PUT.
+4. Displays the result of each upload in the terminal.
+5. Prints a summary of successful and failed uploads.
+
+**Important:** Existing resources with the same filename may be overwritten without confirmation. Check the selected book and chapters before running the upload.
+
+## 6. Integration with the BDD Website
+
+The final HTML files are uploaded to the eXist-db collection:
+
+```text
+/db/apps/bdd/collations/
+```
+
+All files are stored directly in this collection, without book-specific sub-collections.
+
+The XQuery module `collations.xqm` automatically retrieves the files, extracts the book, chapter and witnesses from their filenames, and generates the collation overview using Bootstrap accordions. The tables are grouped by book and sorted by chapter.
+
+Once the files have been successfully uploaded, they are automatically included in the website overview, without requiring any changes to overview.html or collations.xqm.

@@ -1,7 +1,11 @@
 user_exist = 'username'
 pw_exist = 'password'
-cwd = '/path/to/src/'
-base_url = 'url/to/exist/files'
+
+# Download TEI manuscripts
+base_url = "https://burchard.adwmainz.net/exist/webdav/db/collections/bdd/data/mss/"
+
+# Upload final collation tables
+collations_upload_url = "https://burchard.adwmainz.net/exist/webdav/db/apps/bdd/collations/"
 
 xslt =  ('''<xsl:stylesheet version="1.0" xmlns:xsl="http://www.w3.org/1999/XSL/Transform" xmlns:tei="http://www.tei-c.org/ns/1.0">
                 <xsl:output method="text" indent="no"/>
